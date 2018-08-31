@@ -333,9 +333,9 @@ class ExampleConsumer(object):
 
         """
         self._connection = self.connect()
-        thread = threading.Thread(target=self._connection.ioloop.start)
-        thread.setDaemon(True)
-        thread.start()
+        self.thread = threading.Thread(target=self._connection.ioloop.start)
+        self.thread.setDaemon(True)
+        self.thread.start()
 
     def stop(self):
         """Cleanly shutdown the connection to RabbitMQ by stopping the consumer
@@ -359,6 +359,10 @@ class ExampleConsumer(object):
         LOGGER.info('Closing connection')
         self._connection.close()
 
+    def join(self):
+        self.thread.join()
+
+pika_consumer =[]
 
 def create_app():
 
@@ -384,13 +388,18 @@ def create_app():
     api.init_app(application)
     db.init_app(application)
 
-    pika_consumer_qty = 2
+    return application
+
+
+if __name__ == '__main__':
+    app = create_app()
 
     LOGGER.info('Starting Example Consumers...')
     pika_consumers = []
+    pika_consumer_qty = 2
     for i in range(pika_consumer_qty):
         LOGGER.info('...' + str(i))
-        example_consumer = ExampleConsumer('amqp://guest:guest@localhost:5672/%2F', application)
+        example_consumer = ExampleConsumer('amqp://guest:guest@localhost:5672/%2F', app)
         example_consumer.run()
         pika_consumers.append(example_consumer)
     LOGGER.info('Done.')
@@ -400,13 +409,10 @@ def create_app():
         for consumer in pika_consumers:
             LOGGER.info("Goodbye!")
             consumer.stop()
+
+    for consumer in pika_consumers:
+        consumer.join()
+
     atexit.register(shutdown_consumers)
 
-    return application
-
-
-if __name__ == '__main__':
-    app = create_app()
-    while True:
-        pass
     #app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
