@@ -410,9 +410,9 @@ if __name__ == '__main__':
             LOGGER.info("Goodbye!")
             consumer.stop()
 
+    atexit.register(shutdown_consumers)
+
     for consumer in pika_consumers:
         consumer.join()
-
-    atexit.register(shutdown_consumers)
 
     #app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
