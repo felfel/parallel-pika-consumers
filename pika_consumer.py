@@ -404,6 +404,10 @@ if __name__ == '__main__':
         pika_consumers.append(example_consumer)
     LOGGER.info('Done.')
 
+    # TODO: Register event handlers to the ExampleConsumer
+    # TODO: Then, for each message, send them to the handlers one by one until it gets acknowledged by one of the handlers
+    # TODO: If it is acknowledged, you are fine, if not, log and ignore the rabbitmq message
+
     # register hook to stop consumers on exit
     def shutdown_consumers():
         for consumer in pika_consumers:
