@@ -7,6 +7,10 @@ import time
 import threading
 import atexit
 
+from busy_wait import busy_wait_query
+from config import DevelopmentConfig
+from extensions import db
+
 LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
               '-35s %(lineno) -5d: %(message)s')
 LOGGER = logging.getLogger(__name__)
@@ -30,7 +34,7 @@ class ExampleConsumer(object):
     QUEUE = 'text'
     ROUTING_KEY = 'example.text'
 
-    def __init__(self, amqp_url):
+    def __init__(self, amqp_url, app):
         """Create a new instance of the consumer class, passing in the AMQP
         URL used to connect to RabbitMQ.
 
@@ -42,6 +46,7 @@ class ExampleConsumer(object):
         self._closing = False
         self._consumer_tag = None
         self._url = amqp_url
+        self.app = app
 
     def connect(self):
         """This method connects to RabbitMQ, returning the connection handle.
@@ -274,7 +279,12 @@ class ExampleConsumer(object):
         # I WAIT
         #######
         LOGGER.info("After consuming this message, I feel a bit lazy...sleeping for 1 second ヾ(￣0￣ )ノ")
-        time.sleep(1)
+
+        self.app.app_context().push()
+        pl = busy_wait_query()
+
+        if len(pl) > 0:
+            LOGGER.info(str(pl[0].warehouse_id))
 
         self.acknowledge_message(basic_deliver.delivery_tag)
 
@@ -285,7 +295,7 @@ class ExampleConsumer(object):
         :param int delivery_tag: The delivery tag from the Basic.Deliver frame
 
         """
-        LOGGER.info('Acknowledging message %s', delivery_tag)
+        LOGGER.info('Acknowledging message # %s', delivery_tag)
         self._channel.basic_ack(delivery_tag)
 
     def stop_consuming(self):
@@ -357,13 +367,30 @@ def create_app():
     # init app and config
     application = Flask(__name__)
 
-    pika_consumer_qty = 20
+    config = DevelopmentConfig()
+
+    # read into app.config (we'll use our custom config class in any case, but it contains also flask directives)
+    application.config.from_object(config)
+
+    # register resources (has to be done before registering the api extension itself)
+    from resource import ExampleResource
+
+    from flask_restful import Api
+
+    api = Api()
+    # register resources (has to be done before registering the api extension itself)
+    api.add_resource(ExampleResource, '/test')
+
+    api.init_app(application)
+    db.init_app(application)
+
+    pika_consumer_qty = 2
 
     LOGGER.info('Starting Example Consumers...')
     pika_consumers = []
-    for i in range(0, pika_consumer_qty):
+    for i in range(pika_consumer_qty):
         LOGGER.info('...' + str(i))
-        example_consumer = ExampleConsumer('amqp://guest:guest@localhost:5672/%2F')
+        example_consumer = ExampleConsumer('amqp://guest:guest@localhost:5672/%2F', application)
         example_consumer.run()
         pika_consumers.append(example_consumer)
     LOGGER.info('Done.')
@@ -380,4 +407,6 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0')
+    while True:
+        pass
+    #app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
